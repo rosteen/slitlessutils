@@ -616,7 +616,7 @@ class Single(Module):
                                                 func = np.sqrt(profnorm / norm)
 
                                         # update the model
-                                        mod[yy, x] = flam * den * prof
+                                        mod[yy, x] = flam*den*prof
 
                                         # compute contamination
                                         if self.contamination:
@@ -638,7 +638,8 @@ class Single(Module):
                                     for args in zip(results[segid]['wave'], results[segid]['flam']):
                                         print(*args, file=fp)
 
-                                # fits.writeto(f'{data.dataset}_res.fits', (sci-mod)/unc, overwrite=True)
+                                fits.writeto(f'{data.dataset}_res.fits', (sci-mod)/unc, overwrite=True)
+
                             else:
 
                                 di = 0.5
