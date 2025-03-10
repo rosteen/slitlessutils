@@ -50,16 +50,6 @@ def background_processing(mastersky=False):
                     LOGGER.warning(msg)
                     return
 
-                # check that this is *NOT* a subarray.  Eventually, we can excise
-                # the master sky image(s) and this check can be removed, but that is
-                # going to take a little more care.  Specifically, the concerns will be
-                # which CCD/detector is the subarray on?  This affects the primary
-                # for-loop over the HDUL.  This shouldn't be too hard.
-                if mastersky and phdr.get('SUBARRAY', False):
-                    msg = f"Master-sky subtraction is not supported for subarrays: {filename}"
-                    LOGGER.knownissue(msg)
-                    return
-
                 # look at each HDU
                 for hdu in hdul:
 
@@ -72,16 +62,33 @@ def background_processing(mastersky=False):
                         hdr = hdul[('SCI', vers)].header
                         unc = hdul[('ERR', vers)].data
                         dqa = hdul[('DQ', vers)].data
+                        skycorr = hdr.get('SKYCORR', False)
 
-                        # get an estimate of the sky from statistics
-                        gpx = (dqa == 0)      # these are good pixels
-                        ave, med, sig = sigma_clipped_stats(sci[gpx], sigma=self.skysigma)
+                        if not skycorr:
+                            # get an estimate of the sky from statistics
+                            gpx = (dqa == 0)      # these are good pixels
+                            ave, med, sig = sigma_clipped_stats(sci[gpx], sigma=self.skysigma)
 
-                        # if doing master sky, then need to prep the sky
-                        if mastersky:
-                            if isinstance(backfile, str) and os.path.exists(backfile):
-                                # get the model and check normalization
-                                mod = fits.getdata(backfile, ('SKY', vers))
+                            # if doing master sky, then need to prep the sky
+                            if mastersky:
+                                if isinstance(backfile, str) and os.path.exists(backfile):
+                                    # get the model and check normalization
+                                    if phdr.get('SUBARRAY', False):
+                                        # In the subarray case, we could have both CCDCHIP and
+                                        # EXTVER both be 1, so we need to make sure we get the correct
+                                        # extension from the master background file.
+                                        if hdr['CCDCHIP'] == 1:
+                                            back_vers = 2
+                                        elif hdr['CCDCHIP'] == 2:
+                                            back_vers = 1
+                                        # Warn that results might still be suspect
+                                        msg = ("Master-sky subtraction may give poor results for subarray"
+                                               f"data, especially for small subarrays: {filename}")
+                                        LOGGER.knownissue(msg)
+                                    else:
+                                        back_vers = vers
+
+                                    mod = fits.getdata(backfile, ('SKY', back_vers))
 
                                 a, m, s = sigma_clipped_stats(mod)
                                 if np.abs(a - 1) > 1e-2:
