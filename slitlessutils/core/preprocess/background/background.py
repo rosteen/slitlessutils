@@ -90,44 +90,51 @@ def background_processing(mastersky=False):
 
                                     mod = fits.getdata(backfile, ('SKY', back_vers))
 
-                                a, m, s = sigma_clipped_stats(mod)
-                                if np.abs(a - 1) > 1e-2:
-                                    msg = (f'The master sky image ({backfile}) is '
-                                           f'unnormalized {a}. Results will be fine, '
-                                           f'but the units may not make sense.')
+                                    a, m, s = sigma_clipped_stats(mod)
+                                    if np.abs(a - 1) > 1e-2:
+                                        msg = (f'The master sky image ({backfile}) is '
+                                               f'unnormalized {a}. Results will be fine, '
+                                               f'but the values may be suspect.')
+                                        LOGGER.warning(msg)
+
+                                    # excise if need-be
+                                    if phdr['INSTRUME'] == 'WFC3':
+                                        x0 = -int(hdr.get('LTV1', 0))
+                                        y0 = -int(hdr.get('LTV2', 0))
+                                        nx = hdr['NAXIS1']
+                                        ny = hdr['NAXIS2']
+                                        mod = mod[y0:ny + y0, x0:nx + x0]
+
+                                    ret, src = func(self, sci, hdr, unc, med, gpx, mod, **kwargs)
+                                else:
+                                    msg = f'The master-sky image is invalid: {backfile}.  ' + \
+                                        'No subtraction performed.'
                                     LOGGER.warning(msg)
-
-                                # excise if need-be
-                                if phdr['INSTRUME'] == 'WFC3':
-                                    x0 = -int(hdr.get('LTV1', 0))
-                                    y0 = -int(hdr.get('LTV2', 0))
-                                    nx = hdr['NAXIS1']
-                                    ny = hdr['NAXIS2']
-                                    mod = mod[y0:ny + y0, x0:nx + x0]
-
-                                ret, src = func(self, sci, hdr, unc, med, gpx, mod, **kwargs)
+                                    ret = 0.
                             else:
-                                msg = f'The master-sky image is invalid: {backfile}.  ' + \
-                                    'No subtraction performed.'
-                                LOGGER.warning(msg)
-                                ret = 0.
-                        else:
-                            ret, src = func(self, sci, hdr, unc, med, gpx, **kwargs)
+                                ret, src = func(self, sci, hdr, unc, med, gpx, **kwargs)
 
-                        # have the model now, so subtract it
-                        hdul[('SCI', vers)].data = sci - ret
-                        hdul[('SCI', vers)].header = hdr
+                            # have the model now, so subtract it
+                            hdul[('SCI', vers)].data = sci - ret
+                            hdul[('SCI', vers)].header = hdr
+
+                            # update the dummy
+                            wrote = True
+                        else:
+                            LOGGER.warn('Images are already background subtracted.  Ignoring.')
 
                 # do something for each type of inplace writing, but always
                 # return a filename
-                if inplace:
-                    outfile = filename
+                if wrote:
+                    if inplace:
+                        outfile = filename
+                    else:
+                        if newfile is None:
+                            newfile = f'{data.dataset}_sub.fits'
+                        hdul.writeto(newfile, overwrite=True)
+                        outfile = newfile
                 else:
-                    if newfile is None:
-                        newfile = f'{data.dataset}_sub.fits'
-                    hdul.writeto(newfile, overwrite=True)
-                    outfile = newfile
-
+                    outfile = filename
             return outfile
         return wrapper
     return background
@@ -560,9 +567,9 @@ class Background:
             The fits header to update
         """
 
+        hdr.set('SKYCORR', value=True, comment='Master sky subtracted?')
         hdr.set('SKYNSIG', value=self.skysigma,
                 comment='Nsigma for constant sky model')
-
         hdr.set('SRCNSIG', value=self.srcsigma,
                 comment='Nsigma for thresholding sources')
         hdr.set('OUTNSIG', value=self.outliersigma,
