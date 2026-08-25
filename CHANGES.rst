@@ -16,6 +16,9 @@ Other Changes and Additions
 Bug Fixes
 ---------
 
+- Updated to use scipy sparse arrays instead of sparse matrices, due to upcoming
+  deprecation of the latter. [#158]
+
 2.0 (2026-03-27)
 ================
 
