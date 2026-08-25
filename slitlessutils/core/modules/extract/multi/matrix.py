@@ -53,7 +53,7 @@ class Matrix:
     few sources at very select wavelengths will deposit flux on any given
     pixel in any given observation.  Therefore the matrix :math:`A` will be
     a very sparse matrix, and so internally, it is built and manipulated
-    as a `scipy.sparse.csr_matrix()` object.
+    as a `scipy.sparse.csr_array()` object.
 
     This linear system can be solved in a chi2-sense using standard methods:
     `scipy.sparse.linalg.lsqr()` and `scipy.sparse.linalg.lsmr()`, both of
@@ -124,8 +124,10 @@ class Matrix:
 
         Returns
         -------
-        A : `scipy.sparse.csr_matrix`
-            The CSR sparse matrix for this image
+        A : `scipy.sparse.csr_array`
+            The CSR sparse array for this image (note that scipy sparse matrices are
+            being deprecated in favor of sparse arrays, see
+            https://docs.scipy.org/doc/scipy/reference/sparse.migration_to_sparray.html)
 
         '''
 
@@ -176,17 +178,17 @@ class Matrix:
                         # apply calibs to the weights
                         aij = (val * sens * flat * area)
 
-                        # make the local sparse matrix
-                        A_region = sparse.csr_matrix((aij, (i, j)), shape=shape)
+                        # make the local sparse array
+                        A_region = sparse.csr_array((aij, (i, j)), shape=shape)
 
                     else:
-                        # create an empty matrix for objects out of the field
-                        A_region = sparse.csr_matrix(shape)
+                        # create an empty array for objects out of the field
+                        A_region = sparse.csr_array(shape)
 
                     # save it to the list, so we can stack them later
                     A_image.append(A_region)
 
-        # stack all the sparse matrices
+        # stack all the sparse arrays
         A_image = sparse.hstack(A_image)
 
         if removezeros:
@@ -204,7 +206,7 @@ class Matrix:
 
     def build_matrix(self, data, sources, group=0):
         '''
-        Build a sparse matrix and ancillary data
+        Build a sparse array and ancillary data
 
         Inputs
         ------
